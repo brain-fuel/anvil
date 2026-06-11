@@ -3,6 +3,14 @@
 Anvil's entire server state is one JSON config file plus a small license
 state file. A $5 VPS runs it comfortably.
 
+## Try before configuring
+
+`anvil serve` with no `anvil.json` present starts **demo mode**: synthetic
+calendars, a bookable `/l/intro` link, and the agenda at `/`. Bookings land
+in an in-memory calendar and immediately block the slot. Nothing touches
+real providers. Copy `deploy/anvil.example.json` to `anvil.json` when ready
+to go live.
+
 ## Option A: binary + systemd + Caddy
 
 ```sh

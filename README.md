@@ -24,6 +24,18 @@ mike := schedule.Merge("mike", workBusy, personalBusy, volunteerBusy)
 A `Person` is a name plus the union of all their busy time. The finder never
 needs to know how many calendars fed it.
 
+## Try it in ten seconds
+
+```sh
+go install goforge.dev/anvil/cmd/anvil@latest
+anvil serve        # no config? demo mode: synthetic calendars, real booking flow
+```
+
+Open <http://localhost:8080/l/intro> (booking page) and
+<http://localhost:8080/> (agenda PWA). Book a slot — it lands in an
+in-memory calendar and immediately stops being offered. `anvil serve -demo`
+forces demo mode even when a config exists.
+
 ## Use it now
 
 ```sh

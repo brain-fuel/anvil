@@ -257,12 +257,44 @@ func cmdAgenda(args []string) {
 func cmdServe(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	cfgFlag := fs.String("config", "anvil.json", "path to config file")
+	demoFlag := fs.Bool("demo", false, "run with synthetic calendars (no config needed)")
+	listenFlag := fs.String("listen", "", "listen address for -demo (default :8080)")
 	fs.Parse(args)
 
-	cfg, err := serve.LoadConfig(*cfgFlag)
-	fatalIf(err, "config")
-	srv, err := serve.New(cfg)
-	fatalIf(err, "")
+	cfgExplicit := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "config" {
+			cfgExplicit = true
+		}
+	})
+	if !*demoFlag && !cfgExplicit {
+		if _, err := os.Stat(*cfgFlag); os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "anvil: no %s found — starting demo mode (synthetic calendars).\n"+
+				"anvil: write a real config to go live: see deploy/anvil.example.json\n", *cfgFlag)
+			*demoFlag = true
+		}
+	}
+
+	var srv *serve.Server
+	var err error
+	if *demoFlag {
+		srv, err = serve.Demo(*listenFlag)
+		fatalIf(err, "demo")
+		port := *listenFlag
+		if port == "" {
+			port = ":8080"
+		}
+		if strings.HasPrefix(port, ":") {
+			port = "localhost" + port
+		}
+		fmt.Fprintf(os.Stderr, "anvil: demo — booking page http://%s/l/intro  agenda http://%s/\n", port, port)
+	} else {
+		var cfg *serve.Config
+		cfg, err = serve.LoadConfig(*cfgFlag)
+		fatalIf(err, "config")
+		srv, err = serve.New(cfg)
+		fatalIf(err, "")
+	}
 
 	mgr := licensing.NewManager()
 	licensed, _, err := mgr.Check()
