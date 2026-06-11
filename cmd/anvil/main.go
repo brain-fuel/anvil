@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 	_ "time/tzdata" // embed the zone database: scratch containers, Windows
@@ -31,7 +32,18 @@ import (
 
 // version is stamped by the release build:
 // go build -ldflags "-X main.version=v0.3.0".
+// go-installed binaries fall back to the module version.
 var version = "dev"
+
+func resolvedVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return version
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -51,7 +63,7 @@ func main() {
 	case "caldav-calendars":
 		cmdCaldavCalendars(os.Args[2:])
 	case "version":
-		fmt.Println("anvil", version)
+		fmt.Println("anvil", resolvedVersion())
 	default:
 		usage()
 	}
