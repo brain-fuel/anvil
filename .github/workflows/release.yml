@@ -28,10 +28,10 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"
           LDFLAGS="-s -w -X main.version=${VERSION}"
           if [ -n "${POLAR_ORG_ID}" ]; then
-            LDFLAGS="${LDFLAGS} -X goforge.dev/anvil/license.OrgID=${POLAR_ORG_ID}"
+            LDFLAGS="${LDFLAGS} -X goforge.dev/anvil/licensing.OrgID=${POLAR_ORG_ID}"
           fi
           if [ -n "${BUY_URL}" ]; then
-            LDFLAGS="${LDFLAGS} -X goforge.dev/anvil/license.BuyURL=${BUY_URL}"
+            LDFLAGS="${LDFLAGS} -X goforge.dev/anvil/licensing.BuyURL=${BUY_URL}"
           fi
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
             GOOS="${target%/*}" GOARCH="${target#*/}"

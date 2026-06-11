@@ -9,8 +9,8 @@ ARG POLAR_ORG_ID=
 ARG BUY_URL=
 RUN set -eux; \
     LDFLAGS="-s -w -X main.version=${VERSION}"; \
-    [ -n "$POLAR_ORG_ID" ] && LDFLAGS="$LDFLAGS -X goforge.dev/anvil/license.OrgID=${POLAR_ORG_ID}"; \
-    [ -n "$BUY_URL" ] && LDFLAGS="$LDFLAGS -X goforge.dev/anvil/license.BuyURL=${BUY_URL}"; \
+    [ -n "$POLAR_ORG_ID" ] && LDFLAGS="$LDFLAGS -X goforge.dev/anvil/licensing.OrgID=${POLAR_ORG_ID}"; \
+    [ -n "$BUY_URL" ] && LDFLAGS="$LDFLAGS -X goforge.dev/anvil/licensing.BuyURL=${BUY_URL}"; \
     CGO_ENABLED=0 go build -trimpath -ldflags "$LDFLAGS" -o /anvil ./cmd/anvil
 
 FROM scratch

@@ -24,7 +24,7 @@ import (
 	"goforge.dev/anvil/gcal"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
-	"goforge.dev/anvil/license"
+	"goforge.dev/anvil/licensing"
 	"goforge.dev/anvil/schedule"
 	"goforge.dev/anvil/serve"
 )
@@ -252,7 +252,7 @@ func cmdServe(args []string) {
 	srv, err := serve.New(cfg)
 	fatalIf(err, "")
 
-	mgr := license.NewManager()
+	mgr := licensing.NewManager()
 	licensed, _, err := mgr.Check()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "anvil: license state: %v (continuing on free tier)\n", err)
@@ -266,7 +266,7 @@ func cmdServe(args []string) {
 
 // revalidateLoop refreshes the entitlement daily so a revoked or expired
 // key degrades (and a renewed one recovers) without a restart.
-func revalidateLoop(srv *serve.Server, mgr *license.Manager) {
+func revalidateLoop(srv *serve.Server, mgr *licensing.Manager) {
 	for range time.Tick(24 * time.Hour) {
 		ok, st, err := mgr.Check()
 		if err != nil {
@@ -288,7 +288,7 @@ func cmdLicense(args []string) {
 	if len(args) < 1 {
 		fatalIf(fmt.Errorf("usage: anvil license <activate KEY [-label NAME] | status>"), "")
 	}
-	mgr := license.NewManager()
+	mgr := licensing.NewManager()
 	switch args[0] {
 	case "activate":
 		fs := flag.NewFlagSet("license activate", flag.ExitOnError)
@@ -313,7 +313,7 @@ func cmdLicense(args []string) {
 		ok, st, err := mgr.Check()
 		fatalIf(err, "status")
 		if st == nil {
-			fmt.Printf("no license — free tier (1 scheduling link)\nAnvil Pro: %s\n", license.BuyURL)
+			fmt.Printf("no license — free tier (1 scheduling link)\nAnvil Pro: %s\n", licensing.BuyURL)
 			return
 		}
 		fmt.Printf("licensed:   %v\nstatus:     %s\nlabel:      %s\nlast valid: %s\n",
@@ -322,7 +322,7 @@ func cmdLicense(args []string) {
 			fmt.Printf("expires:    %s\n", st.ExpiresAt.Format("2006-01-02"))
 		}
 		if !ok {
-			fmt.Printf("running on the free tier — renew at %s\n", license.BuyURL)
+			fmt.Printf("running on the free tier — renew at %s\n", licensing.BuyURL)
 		}
 	default:
 		fatalIf(fmt.Errorf("unknown license subcommand %q (want activate or status)", args[0]), "")

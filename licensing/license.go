@@ -6,7 +6,7 @@
 //
 // Anvil's source is MIT; the gate is honest-but-real. If you strip it,
 // you know what you did.
-package license
+package licensing
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ import (
 
 // Set at build time:
 //
-//	go build -ldflags "-X goforge.dev/anvil/license.OrgID=<polar org id>"
+//	go build -ldflags "-X goforge.dev/anvil/licensing.OrgID=<polar org id>"
 //
 // Overridable at runtime with ANVIL_LICENSE_ORG (forks, tests).
 var OrgID = ""

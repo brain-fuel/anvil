@@ -21,7 +21,7 @@ import (
 	"goforge.dev/anvil/agenda"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
-	"goforge.dev/anvil/license"
+	"goforge.dev/anvil/licensing"
 	"goforge.dev/anvil/schedule"
 )
 
@@ -58,7 +58,7 @@ const FreeLinkLimit = 1
 func (s *Server) CheckEntitlement() error {
 	if len(s.cfg.Links) > FreeLinkLimit && !s.Licensed() {
 		return fmt.Errorf("config has %d scheduling links; the free tier serves %d.\nAnvil Pro is $90/year for unlimited links: %s\nAlready bought? Run: anvil license activate <key>",
-			len(s.cfg.Links), FreeLinkLimit, license.BuyURL)
+			len(s.cfg.Links), FreeLinkLimit, licensing.BuyURL)
 	}
 	return nil
 }
