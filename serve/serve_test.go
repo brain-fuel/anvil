@@ -269,3 +269,87 @@ func TestInPersonTravelPadding(t *testing.T) {
 }
 
 var _ = fmt.Sprintf // keep fmt for debugging edits
+
+func TestEntitlementGate(t *testing.T) {
+	srv, _ := newTestServer(t)
+	srv.cfg.Links = append(srv.cfg.Links, LinkConfig{
+		Slug: "second", Title: "Second", DurationM: 30,
+		Required: []string{"mike"}, BookInto: "target",
+	})
+	if err := srv.CheckEntitlement(); err == nil || !strings.Contains(err.Error(), "free tier") {
+		t.Fatalf("err %v, want free-tier rejection", err)
+	}
+	srv.SetLicensed(true)
+	if err := srv.CheckEntitlement(); err != nil {
+		t.Fatalf("licensed but rejected: %v", err)
+	}
+	srv.cfg.Links = srv.cfg.Links[:1]
+	srv.SetLicensed(false)
+	if err := srv.CheckEntitlement(); err != nil {
+		t.Fatalf("single link should be free: %v", err)
+	}
+}
+
+func TestPoweredByFooter(t *testing.T) {
+	srv, _ := newTestServer(t)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	get := func() string {
+		resp, err := http.Get(ts.URL + "/l/intro")
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return string(b)
+	}
+	if !strings.Contains(get(), "Powered by anvil") {
+		t.Error("free tier should show the footer")
+	}
+	srv.SetLicensed(true)
+	if strings.Contains(get(), "Powered by anvil") {
+		t.Error("licensed deployment should not show the footer")
+	}
+}
+
+func TestHealthz(t *testing.T) {
+	srv, _ := newTestServer(t)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || !strings.HasPrefix(string(b), "ok") {
+		t.Fatalf("%d %q", resp.StatusCode, b)
+	}
+}
+
+func TestBookingRateLimit(t *testing.T) {
+	lim := newIPLimiter(6, 3)
+	base := time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)
+	now := base
+	lim.now = func() time.Time { return now }
+
+	for i := 0; i < 3; i++ {
+		if !lim.allow("1.2.3.4") {
+			t.Fatalf("burst request %d denied", i)
+		}
+	}
+	if lim.allow("1.2.3.4") {
+		t.Fatal("burst exceeded but allowed")
+	}
+	if !lim.allow("5.6.7.8") {
+		t.Fatal("other IP throttled")
+	}
+	now = base.Add(15 * time.Second) // 6/min → 1.5 tokens refilled
+	if !lim.allow("1.2.3.4") {
+		t.Fatal("refill did not restore a token")
+	}
+	if lim.allow("1.2.3.4") {
+		t.Fatal("only one token should have been available")
+	}
+}

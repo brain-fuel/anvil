@@ -1,0 +1,30 @@
+{
+  "listen": ":8080",
+  "timezone": "America/New_York",
+  "auth": {"username": "mike", "password": "change-me"},
+  "calendars": [
+    {"name": "mike-work", "ics_url": "https://calendar.google.com/calendar/ical/.../basic.ics"},
+    {"name": "mike-personal", "caldav": {
+      "base_url": "https://caldav.fastmail.com",
+      "username": "mike@fastmail.com",
+      "password": "app-password",
+      "calendar_url": "https://caldav.fastmail.com/dav/calendars/user/mike@fastmail.com/personal/"
+    }},
+    {"name": "melissa", "google": {
+      "client_id": "....apps.googleusercontent.com",
+      "client_secret": "...",
+      "refresh_token": "from `anvil gcal-login`",
+      "calendar_id": "primary"
+    }}
+  ],
+  "people": [
+    {"name": "mike", "email": "mike@example.com", "calendars": ["mike-work", "mike-personal"]},
+    {"name": "melissa", "email": "melissa@example.com", "calendars": ["melissa"]}
+  ],
+  "agenda": ["mike-work", "mike-personal"],
+  "links": [
+    {"slug": "intro", "title": "Intro with Mike & Melissa", "duration_m": 45,
+     "required": ["mike", "melissa"],
+     "google_meet": true, "book_into": "melissa"}
+  ]
+}

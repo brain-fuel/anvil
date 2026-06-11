@@ -1,0 +1,8 @@
+{
+	email {$EMAIL}
+}
+
+{$DOMAIN} {
+	reverse_proxy anvil:8080
+	encode gzip
+}

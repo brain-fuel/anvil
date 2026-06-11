@@ -154,6 +154,18 @@ slots, _ := schedule.Find(schedule.Request{
 })
 ```
 
+## Pricing
+
+Everything you've read is free for one scheduling link — not a trial.
+**Anvil Pro** is **$90/year per deployment**: unlimited links, no
+booking-page footer, priority support. Calendly charges $20/user/month for
+less. Details in [docs/LICENSING.md](docs/LICENSING.md); self-hosting guide
+in [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
+
+```sh
+anvil license activate ANVIL_XXXX
+```
+
 ## Roadmap
 
 1. ~~Library: interval algebra, scheduling kernel, iCal ingestion~~ — v0.1.0

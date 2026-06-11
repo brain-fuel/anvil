@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"context"
 	"crypto/subtle"
 	"embed"
 	"encoding/json"
@@ -8,14 +9,19 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"goforge.dev/anvil/agenda"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
+	"goforge.dev/anvil/license"
 	"goforge.dev/anvil/schedule"
 )
 
@@ -32,8 +38,29 @@ type Server struct {
 	writers map[string]Writer
 	people  map[string]PersonConfig
 
-	now    func() time.Time
-	bookMu sync.Mutex // one booking at a time prevents double-booking races
+	now      func() time.Time
+	bookMu   sync.Mutex  // one booking at a time prevents double-booking races
+	licensed atomic.Bool // Anvil Pro entitlement; flipped by background revalidation
+}
+
+// SetLicensed flips the Pro entitlement (set at boot and by the background
+// license revalidation loop).
+func (s *Server) SetLicensed(v bool) { s.licensed.Store(v) }
+
+// Licensed reports the current entitlement.
+func (s *Server) Licensed() bool { return s.licensed.Load() }
+
+// FreeLinkLimit is how many scheduling links the free tier serves.
+const FreeLinkLimit = 1
+
+// CheckEntitlement enforces the free-tier limit at boot: failing fast beats
+// surprising a paying guest with a dead link later.
+func (s *Server) CheckEntitlement() error {
+	if len(s.cfg.Links) > FreeLinkLimit && !s.Licensed() {
+		return fmt.Errorf("config has %d scheduling links; the free tier serves %d.\nAnvil Pro is $90/year for unlimited links: %s\nAlready bought? Run: anvil license activate <key>",
+			len(s.cfg.Links), FreeLinkLimit, license.BuyURL)
+	}
+	return nil
 }
 
 // New wires a validated config into a Server.
@@ -68,21 +95,72 @@ func New(cfg *Config) (*Server, error) {
 
 // Handler returns the HTTP handler for the whole app.
 func (s *Server) Handler() http.Handler {
+	bookLimiter := newIPLimiter(6, 5) // 5 burst, refill 6/minute per IP
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.auth(s.handleUI))
 	mux.HandleFunc("GET /api/agenda", s.auth(s.handleAgenda))
+	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /manifest.webmanifest", s.handleAsset("assets/manifest.webmanifest", "application/manifest+json"))
 	mux.HandleFunc("GET /sw.js", s.handleAsset("assets/sw.js", "text/javascript"))
 	mux.HandleFunc("GET /l/{slug}", s.handleLink)
-	mux.HandleFunc("POST /l/{slug}/book", s.handleBook)
-	return mux
+	mux.HandleFunc("POST /l/{slug}/book", bookLimiter.limit(s.handleBook))
+	return logRequests(mux)
 }
 
-// ListenAndServe runs the server at cfg.Listen.
+func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintf(w, "ok %d calendars %d links\n", len(s.sources), len(s.cfg.Links))
+}
+
+// logRequests is a one-line-per-request access log.
+func logRequests(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			h.ServeHTTP(w, r) // keep probes out of the log
+			return
+		}
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		h.ServeHTTP(rec, r)
+		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start).Round(time.Millisecond))
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+// ListenAndServe runs the server at cfg.Listen and shuts down gracefully on
+// SIGINT/SIGTERM, letting in-flight bookings finish.
 func (s *Server) ListenAndServe() error {
-	log.Printf("anvil serve: listening on %s (%d calendars, %d links)",
-		s.cfg.Listen, len(s.sources), len(s.cfg.Links))
-	return http.ListenAndServe(s.cfg.Listen, s.Handler())
+	srv := &http.Server{
+		Addr:              s.cfg.Listen,
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe() }()
+	log.Printf("anvil serve: listening on %s (%d calendars, %d links, licensed=%v)",
+		s.cfg.Listen, len(s.sources), len(s.cfg.Links), s.Licensed())
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		log.Print("anvil serve: shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
+	}
 }
 
 func (s *Server) auth(h http.HandlerFunc) http.HandlerFunc {
@@ -310,6 +388,7 @@ func (s *Server) handleLink(w http.ResponseWriter, r *http.Request) {
 		"Groups":   groups,
 		"Timezone": s.cfg.Timezone,
 		"Duration": time.Duration(l.DurationM) * time.Minute,
+		"Licensed": s.Licensed(),
 	})
 }
 

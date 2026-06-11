@@ -22,6 +22,9 @@ input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;bac
 button[type=submit]{margin-top:1rem;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
 .empty{color:var(--muted);padding:2rem 0}
 .chosen{font-weight:600}
+.pow{margin-top:2.5rem;text-align:center;font-size:.8rem}
+.pow a{color:var(--muted);text-decoration:none}
+.pow a:hover{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -49,6 +52,8 @@ button[type=submit]{margin-top:1rem;width:100%;padding:12px;border:0;border-radi
   <input id="email" name="email" type="email" required autocomplete="email">
   <button type="submit">Confirm booking</button>
 </form>
+
+{{if not .Licensed}}<p class="pow"><a href="https://goforge.dev/anvil/" rel="noopener">⚒ Powered by anvil</a></p>{{end}}
 
 <script>
 const form=document.getElementById('book');

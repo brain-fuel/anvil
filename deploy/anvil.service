@@ -1,0 +1,27 @@
+# Install:
+#   sudo cp anvil.service /etc/systemd/system/
+#   sudo mkdir -p /etc/anvil && sudo cp anvil.json /etc/anvil/ && sudo chmod 600 /etc/anvil/anvil.json
+#   sudo systemctl enable --now anvil
+[Unit]
+Description=anvil scheduling server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/anvil serve -config /etc/anvil/anvil.json
+Restart=always
+RestartSec=2
+
+# Hardening: anvil needs only the config (read) and a state dir (license).
+DynamicUser=yes
+StateDirectory=anvil
+Environment=XDG_CONFIG_HOME=/var/lib/anvil
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

@@ -17,15 +17,21 @@ import (
 	"os"
 	"strings"
 	"time"
+	_ "time/tzdata" // embed the zone database: scratch containers, Windows
 
 	"goforge.dev/anvil/agenda"
 	"goforge.dev/anvil/caldav"
 	"goforge.dev/anvil/gcal"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
+	"goforge.dev/anvil/license"
 	"goforge.dev/anvil/schedule"
 	"goforge.dev/anvil/serve"
 )
+
+// version is stamped by the release build:
+// go build -ldflags "-X main.version=v0.3.0".
+var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -38,10 +44,14 @@ func main() {
 		cmdAgenda(os.Args[2:])
 	case "serve":
 		cmdServe(os.Args[2:])
+	case "license":
+		cmdLicense(os.Args[2:])
 	case "gcal-login":
 		cmdGcalLogin(os.Args[2:])
 	case "caldav-calendars":
 		cmdCaldavCalendars(os.Args[2:])
+	case "version":
+		fmt.Println("anvil", version)
 	default:
 		usage()
 	}
@@ -53,8 +63,10 @@ func usage() {
   find              find a meeting slot across iCal files/URLs
   agenda            upcoming events with join links and directions
   serve             scheduling links + agenda app
+  license           activate or inspect an Anvil Pro license
   gcal-login        obtain a Google Calendar refresh token
   caldav-calendars  list CalDAV calendar collections
+  version           print the anvil version
 
 Run 'anvil <command> -h' for flags.`)
 	os.Exit(2)
@@ -239,7 +251,82 @@ func cmdServe(args []string) {
 	fatalIf(err, "config")
 	srv, err := serve.New(cfg)
 	fatalIf(err, "")
+
+	mgr := license.NewManager()
+	licensed, _, err := mgr.Check()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "anvil: license state: %v (continuing on free tier)\n", err)
+	}
+	srv.SetLicensed(licensed)
+	fatalIf(srv.CheckEntitlement(), "")
+	go revalidateLoop(srv, mgr)
+
 	fatalIf(srv.ListenAndServe(), "")
+}
+
+// revalidateLoop refreshes the entitlement daily so a revoked or expired
+// key degrades (and a renewed one recovers) without a restart.
+func revalidateLoop(srv *serve.Server, mgr *license.Manager) {
+	for range time.Tick(24 * time.Hour) {
+		ok, st, err := mgr.Check()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "anvil: license revalidation: %v\n", err)
+			continue
+		}
+		if ok != srv.Licensed() {
+			status := "(no state)"
+			if st != nil {
+				status = st.Status
+			}
+			fmt.Fprintf(os.Stderr, "anvil: license entitlement changed: licensed=%v status=%s\n", ok, status)
+		}
+		srv.SetLicensed(ok)
+	}
+}
+
+func cmdLicense(args []string) {
+	if len(args) < 1 {
+		fatalIf(fmt.Errorf("usage: anvil license <activate KEY [-label NAME] | status>"), "")
+	}
+	mgr := license.NewManager()
+	switch args[0] {
+	case "activate":
+		fs := flag.NewFlagSet("license activate", flag.ExitOnError)
+		labelFlag := fs.String("label", "", "label for this deployment (default hostname)")
+		if len(args) < 2 || strings.HasPrefix(args[1], "-") {
+			fatalIf(fmt.Errorf("usage: anvil license activate KEY [-label NAME]"), "")
+		}
+		key := args[1]
+		fs.Parse(args[2:])
+		label := *labelFlag
+		if label == "" {
+			label, _ = os.Hostname()
+		}
+		st, err := mgr.Activate(key, label)
+		fatalIf(err, "activate")
+		fmt.Printf("activated: %s (status %s", st.Label, st.Status)
+		if !st.ExpiresAt.IsZero() {
+			fmt.Printf(", renews/expires %s", st.ExpiresAt.Format("2006-01-02"))
+		}
+		fmt.Printf(")\nstate: %s\n", mgr.Path)
+	case "status":
+		ok, st, err := mgr.Check()
+		fatalIf(err, "status")
+		if st == nil {
+			fmt.Printf("no license — free tier (1 scheduling link)\nAnvil Pro: %s\n", license.BuyURL)
+			return
+		}
+		fmt.Printf("licensed:   %v\nstatus:     %s\nlabel:      %s\nlast valid: %s\n",
+			ok, st.Status, st.Label, st.LastValid.Format(time.RFC3339))
+		if !st.ExpiresAt.IsZero() {
+			fmt.Printf("expires:    %s\n", st.ExpiresAt.Format("2006-01-02"))
+		}
+		if !ok {
+			fmt.Printf("running on the free tier — renew at %s\n", license.BuyURL)
+		}
+	default:
+		fatalIf(fmt.Errorf("unknown license subcommand %q (want activate or status)", args[0]), "")
+	}
 }
 
 func cmdGcalLogin(args []string) {
