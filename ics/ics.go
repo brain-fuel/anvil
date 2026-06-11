@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,14 +22,27 @@ import (
 
 // Event is one VEVENT, recurrence not yet expanded.
 type Event struct {
+	UID         string
 	Summary     string
+	Location    string
+	Description string
+	URL         string
 	Start       time.Time
 	End         time.Time
+	Stamp       time.Time // DTSTAMP; used when encoding
 	AllDay      bool
 	Transparent bool // TRANSP:TRANSPARENT — shows as free
 	Cancelled   bool
+	Organizer   Attendee
+	Attendees   []Attendee
 	Recur       *Recurrence
 	ExDates     []time.Time
+}
+
+// Attendee is an ORGANIZER or ATTENDEE participant.
+type Attendee struct {
+	Name  string // CN parameter
+	Email string
 }
 
 // Recurrence is the supported subset of RRULE.
@@ -91,6 +105,18 @@ func ParseIn(r io.Reader, floating *time.Location) (*Calendar, error) {
 			// outside VEVENT: ignore
 		case name == "SUMMARY":
 			ev.Summary = unescape(value)
+		case name == "UID":
+			ev.UID = value
+		case name == "LOCATION":
+			ev.Location = unescape(value)
+		case name == "DESCRIPTION":
+			ev.Description = unescape(value)
+		case name == "URL":
+			ev.URL = value
+		case name == "ORGANIZER":
+			ev.Organizer = Attendee{Name: params["CN"], Email: stripMailto(value)}
+		case name == "ATTENDEE":
+			ev.Attendees = append(ev.Attendees, Attendee{Name: params["CN"], Email: stripMailto(value)})
 		case name == "DTSTART":
 			t, allDay, err := parseDateTime(value, params, floating)
 			if err != nil {
@@ -159,6 +185,29 @@ func (c *Calendar) Busy(window interval.Span) interval.Set {
 		spans = append(spans, ev.Occurrences(window)...)
 	}
 	return interval.Normalize(spans)
+}
+
+// Occurrence is one concrete instance of an event.
+type Occurrence struct {
+	Start, End time.Time
+	Event      Event
+}
+
+// OccurrencesIn expands every non-cancelled event (including transparent
+// ones — an agenda still shows them) into concrete instances overlapping the
+// window, sorted by start time.
+func (c *Calendar) OccurrencesIn(window interval.Span) []Occurrence {
+	var out []Occurrence
+	for _, ev := range c.Events {
+		if ev.Cancelled {
+			continue
+		}
+		for _, sp := range ev.Occurrences(window) {
+			out = append(out, Occurrence{Start: sp.Start, End: sp.End, Event: ev})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
+	return out
 }
 
 // Occurrences expands the event's recurrence into concrete spans overlapping
@@ -419,6 +468,13 @@ func parseRRule(v string, floating *time.Location) *Recurrence {
 		}
 	}
 	return r
+}
+
+func stripMailto(s string) string {
+	if len(s) >= 7 && strings.EqualFold(s[:7], "mailto:") {
+		return s[7:]
+	}
+	return s
 }
 
 func unescape(s string) string {

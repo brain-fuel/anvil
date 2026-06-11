@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Link.Title}} — anvil</title>
+<style>
+:root{color-scheme:light dark;--accent:#0e7490;--bg:#f8fafc;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1220;--card:#101a2e;--ink:#e2e8f0;--muted:#94a3b8;--line:#1e293b}}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
+main{max-width:720px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.5rem;margin:.5rem 0 .25rem}
+.meta{color:var(--muted);margin-bottom:1.5rem}
+.day{margin:1.25rem 0 .5rem;font-weight:600}
+.slots{display:flex;flex-wrap:wrap;gap:8px}
+.slot{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 14px;font-size:.95rem;cursor:pointer}
+.slot:hover,.slot.sel{border-color:var(--accent);color:var(--accent)}
+form{margin-top:1.5rem;display:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+form.open{display:block}
+label{display:block;margin:.75rem 0 .25rem;font-size:.9rem;color:var(--muted)}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+button[type=submit]{margin-top:1rem;width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.empty{color:var(--muted);padding:2rem 0}
+.chosen{font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>{{.Link.Title}}</h1>
+<p class="meta">{{.Duration}}{{if .Link.InPerson}} · in person{{if .Link.Address}} at {{.Link.Address}}{{end}}{{else}} · video call{{end}} · times in {{.Timezone}}</p>
+
+{{if not .Groups}}
+<p class="empty">No open times in the next while — check back, or reach out directly.</p>
+{{end}}
+
+{{range .Groups}}
+<div class="day">{{.Label}}</div>
+<div class="slots">
+  {{range .Slots}}<button class="slot" data-start="{{.Value}}">{{.Label}}</button>{{end}}
+</div>
+{{end}}
+
+<form id="book" method="post" action="/l/{{.Link.Slug}}/book">
+  <p>Booking <span class="chosen" id="chosen"></span></p>
+  <input type="hidden" name="start" id="start">
+  <label for="name">Your name</label>
+  <input id="name" name="name" required autocomplete="name">
+  <label for="email">Your email</label>
+  <input id="email" name="email" type="email" required autocomplete="email">
+  <button type="submit">Confirm booking</button>
+</form>
+
+<script>
+const form=document.getElementById('book');
+document.querySelectorAll('.slot').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.slot').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel');
+  document.getElementById('start').value=b.dataset.start;
+  document.getElementById('chosen').textContent=b.closest('.slots').previousElementSibling.textContent+', '+b.textContent;
+  form.classList.add('open');form.scrollIntoView({behavior:'smooth',block:'nearest'});
+}));
+</script>
+</main>
+</body>
+</html>

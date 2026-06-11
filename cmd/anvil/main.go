@@ -1,12 +1,15 @@
-// Command anvil finds meeting times across any number of people and
-// calendars, fed by iCalendar files or URLs.
+// Command anvil schedules meetings across any number of people and
+// calendars.
 //
-//	anvil find -d 45m -from 2026-06-15 -to 2026-06-20 -tz America/New_York \
-//	    -who mike=work.ics,personal.ics -who melissa=https://example.com/m.ics \
-//	    -opt stan=stan.ics -opt david=david.ics -travel 30m
+//	anvil find              find a slot across iCal files/URLs
+//	anvil agenda            upcoming events with join links and directions
+//	anvil serve             scheduling links + agenda app (see -config)
+//	anvil gcal-login        obtain a Google Calendar refresh token
+//	anvil caldav-calendars  list CalDAV collections for a server
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -15,10 +18,47 @@ import (
 	"strings"
 	"time"
 
+	"goforge.dev/anvil/agenda"
+	"goforge.dev/anvil/caldav"
+	"goforge.dev/anvil/gcal"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
 	"goforge.dev/anvil/schedule"
+	"goforge.dev/anvil/serve"
 )
+
+func main() {
+	if len(os.Args) < 2 {
+		usage()
+	}
+	switch os.Args[1] {
+	case "find":
+		cmdFind(os.Args[2:])
+	case "agenda":
+		cmdAgenda(os.Args[2:])
+	case "serve":
+		cmdServe(os.Args[2:])
+	case "gcal-login":
+		cmdGcalLogin(os.Args[2:])
+	case "caldav-calendars":
+		cmdCaldavCalendars(os.Args[2:])
+	default:
+		usage()
+	}
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, `usage: anvil <command> [flags]
+
+  find              find a meeting slot across iCal files/URLs
+  agenda            upcoming events with join links and directions
+  serve             scheduling links + agenda app
+  gcal-login        obtain a Google Calendar refresh token
+  caldav-calendars  list CalDAV calendar collections
+
+Run 'anvil <command> -h' for flags.`)
+	os.Exit(2)
+}
 
 type personFlag struct {
 	specs *[]personSpec
@@ -40,17 +80,12 @@ func (f personFlag) Set(v string) error {
 	return nil
 }
 
-func main() {
-	if len(os.Args) < 2 || os.Args[1] != "find" {
-		fmt.Fprintln(os.Stderr, "usage: anvil find [flags]   (see anvil find -h)")
-		os.Exit(2)
-	}
-
+func cmdFind(args []string) {
 	fs := flag.NewFlagSet("find", flag.ExitOnError)
 	var (
 		durFlag    = fs.Duration("d", time.Hour, "meeting duration")
 		fromFlag   = fs.String("from", "", "window start date YYYY-MM-DD (default today)")
-		toFlag     = fs.String("to", "", "window end date YYYY-MM-DD, exclusive (default from+7d)")
+		toFlag     = fs.String("to", "", "window end date YYYY-MM-DD, inclusive (default from+7d)")
 		tzFlag     = fs.String("tz", "Local", "IANA time zone for hours and output")
 		hoursFlag  = fs.String("hours", "09:00-17:00", "allowed wall-clock hours HH:MM-HH:MM")
 		daysFlag   = fs.String("days", "", "allowed days, e.g. mon,tue,wed (default weekdays)")
@@ -61,7 +96,7 @@ func main() {
 	var required, optional []personSpec
 	fs.Var(personFlag{&required}, "who", "required attendee: name=cal[,cal...] (repeatable)")
 	fs.Var(personFlag{&optional}, "opt", "optional attendee: name=cal[,cal...] (repeatable)")
-	fs.Parse(os.Args[2:])
+	fs.Parse(args)
 
 	loc, err := time.LoadLocation(*tzFlag)
 	fatalIf(err, "bad -tz")
@@ -80,9 +115,9 @@ func main() {
 	}
 	window := interval.Span{Start: from, End: to}
 
-	hourFrom, hourTo, err := parseHours(*hoursFlag)
+	hourFrom, hourTo, err := serve.ParseHours(*hoursFlag)
 	fatalIf(err, "bad -hours")
-	days, err := parseDays(*daysFlag)
+	days, err := serve.ParseDays(*daysFlag)
 	fatalIf(err, "bad -days")
 
 	if len(required) == 0 {
@@ -140,6 +175,111 @@ func main() {
 	}
 }
 
+func cmdAgenda(args []string) {
+	fs := flag.NewFlagSet("agenda", flag.ExitOnError)
+	var (
+		daysFlag = fs.Int("days", 3, "days ahead to show")
+		tzFlag   = fs.String("tz", "Local", "IANA time zone for output")
+	)
+	var cals []personSpec
+	fs.Var(personFlag{&cals}, "cal", "calendar: name=file-or-url (repeatable)")
+	fs.Parse(args)
+
+	loc, err := time.LoadLocation(*tzFlag)
+	fatalIf(err, "bad -tz")
+	if len(cals) == 0 {
+		fatalIf(fmt.Errorf("need at least one -cal name=file-or-url"), "")
+	}
+
+	now := time.Now().In(loc)
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	window := interval.Span{Start: start, End: start.AddDate(0, 0, *daysFlag)}
+
+	var sources []agenda.Source
+	for _, c := range cals {
+		for _, src := range c.cals {
+			cal, err := readCalendar(src, loc)
+			fatalIf(err, src)
+			sources = append(sources, agenda.Source{Name: c.name, Calendar: cal})
+		}
+	}
+
+	items := agenda.Build(sources, window)
+	if len(items) == 0 {
+		fmt.Println("nothing scheduled")
+		return
+	}
+	prevDay := ""
+	for _, it := range items {
+		day := it.Start.In(loc).Format("Mon Jan _2")
+		if day != prevDay {
+			prevDay = day
+			fmt.Printf("\n%s\n", day)
+		}
+		when := "all day     "
+		if !it.AllDay {
+			when = fmt.Sprintf("%s–%s", it.Start.In(loc).Format("15:04"), it.End.In(loc).Format("15:04"))
+		}
+		line := fmt.Sprintf("  %s  [%s] %s", when, it.Calendar, it.Summary)
+		if it.JoinURL != "" {
+			line += "\n             join: " + it.JoinURL
+		} else if it.MapsURL != "" {
+			line += "\n             go:   " + it.MapsURL
+		}
+		fmt.Println(line)
+	}
+}
+
+func cmdServe(args []string) {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	cfgFlag := fs.String("config", "anvil.json", "path to config file")
+	fs.Parse(args)
+
+	cfg, err := serve.LoadConfig(*cfgFlag)
+	fatalIf(err, "config")
+	srv, err := serve.New(cfg)
+	fatalIf(err, "")
+	fatalIf(srv.ListenAndServe(), "")
+}
+
+func cmdGcalLogin(args []string) {
+	fs := flag.NewFlagSet("gcal-login", flag.ExitOnError)
+	idFlag := fs.String("client-id", "", "OAuth client ID (Desktop app)")
+	secretFlag := fs.String("client-secret", "", "OAuth client secret")
+	fs.Parse(args)
+	if *idFlag == "" || *secretFlag == "" {
+		fatalIf(fmt.Errorf("need -client-id and -client-secret (create a Desktop-app OAuth client in Google Cloud Console)"), "")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	token, err := gcal.Login(ctx, *idFlag, *secretFlag, func(u string) {
+		fmt.Fprintf(os.Stderr, "Open this URL to authorize:\n\n  %s\n\n", u)
+	})
+	fatalIf(err, "login")
+	fmt.Println(token)
+	fmt.Fprintln(os.Stderr, `Store this refresh token in your config under google.refresh_token.`)
+}
+
+func cmdCaldavCalendars(args []string) {
+	fs := flag.NewFlagSet("caldav-calendars", flag.ExitOnError)
+	urlFlag := fs.String("url", "", "CalDAV server URL, e.g. https://caldav.fastmail.com")
+	userFlag := fs.String("user", "", "username")
+	passFlag := fs.String("pass", "", "password or app password (or set ANVIL_CALDAV_PASS)")
+	fs.Parse(args)
+	if *passFlag == "" {
+		*passFlag = os.Getenv("ANVIL_CALDAV_PASS")
+	}
+	if *urlFlag == "" || *userFlag == "" || *passFlag == "" {
+		fatalIf(fmt.Errorf("need -url, -user, and -pass (or ANVIL_CALDAV_PASS)"), "")
+	}
+	c := &caldav.Client{BaseURL: *urlFlag, Username: *userFlag, Password: *passFlag}
+	cals, err := c.FindCalendars()
+	fatalIf(err, "discover")
+	for _, cal := range cals {
+		fmt.Printf("%-24s %s\n", cal.Name, cal.URL)
+	}
+}
+
 func readCalendar(src string, floating *time.Location) (*ics.Calendar, error) {
 	var r io.ReadCloser
 	if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
@@ -161,50 +301,6 @@ func readCalendar(src string, floating *time.Location) (*ics.Calendar, error) {
 	}
 	defer r.Close()
 	return ics.ParseIn(r, floating)
-}
-
-func parseHours(s string) (from, to time.Duration, err error) {
-	parse := func(v string) (time.Duration, error) {
-		t, err := time.Parse("15:04", v)
-		if err != nil {
-			return 0, err
-		}
-		return time.Duration(t.Hour())*time.Hour + time.Duration(t.Minute())*time.Minute, nil
-	}
-	a, b, ok := strings.Cut(s, "-")
-	if !ok {
-		return 0, 0, fmt.Errorf("want HH:MM-HH:MM, got %q", s)
-	}
-	if from, err = parse(a); err != nil {
-		return 0, 0, err
-	}
-	if to, err = parse(b); err != nil {
-		return 0, 0, err
-	}
-	if to <= from {
-		return 0, 0, fmt.Errorf("hours end before start in %q", s)
-	}
-	return from, to, nil
-}
-
-var dayNames = map[string]time.Weekday{
-	"sun": time.Sunday, "mon": time.Monday, "tue": time.Tuesday, "wed": time.Wednesday,
-	"thu": time.Thursday, "fri": time.Friday, "sat": time.Saturday,
-}
-
-func parseDays(s string) ([]time.Weekday, error) {
-	if s == "" {
-		return nil, nil
-	}
-	var out []time.Weekday
-	for _, name := range strings.Split(strings.ToLower(s), ",") {
-		d, ok := dayNames[strings.TrimSpace(name)[:3]]
-		if !ok {
-			return nil, fmt.Errorf("unknown day %q", name)
-		}
-		out = append(out, d)
-	}
-	return out, nil
 }
 
 func fatalIf(err error, context string) {
