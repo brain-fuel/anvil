@@ -47,9 +47,11 @@ func resolvedVersion() string {
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
+		usage(os.Stderr, 2)
 	}
 	switch os.Args[1] {
+	case "help", "-h", "--help":
+		usage(os.Stdout, 0)
 	case "find":
 		cmdFind(os.Args[2:])
 	case "agenda":
@@ -65,12 +67,12 @@ func main() {
 	case "version":
 		fmt.Println("anvil", resolvedVersion())
 	default:
-		usage()
+		usage(os.Stderr, 2)
 	}
 }
 
-func usage() {
-	fmt.Fprintln(os.Stderr, `usage: anvil <command> [flags]
+func usage(w io.Writer, code int) {
+	fmt.Fprintln(w, `usage: anvil <command> [flags]
 
   find              find a meeting slot across iCal files/URLs
   agenda            upcoming events with join links and directions
@@ -81,7 +83,7 @@ func usage() {
   version           print the anvil version
 
 Run 'anvil <command> -h' for flags.`)
-	os.Exit(2)
+	os.Exit(code)
 }
 
 type personFlag struct {
@@ -121,6 +123,8 @@ func cmdFind(args []string) {
 	fs.Var(personFlag{&required}, "who", "required attendee: name=cal[,cal...] (repeatable)")
 	fs.Var(personFlag{&optional}, "opt", "optional attendee: name=cal[,cal...] (repeatable)")
 	fs.Parse(args)
+	rejectArgs(fs)
+	fatalIf(validateFindFlags(*durFlag, *stepFlag, *travelFlag, *limitFlag), "")
 
 	loc, err := time.LoadLocation(*tzFlag)
 	fatalIf(err, "bad -tz")
@@ -136,6 +140,9 @@ func cmdFind(args []string) {
 		to, err = time.ParseInLocation("2006-01-02", *toFlag, loc)
 		fatalIf(err, "bad -to")
 		to = to.AddDate(0, 0, 1) // inclusive end date
+	}
+	if !to.After(from) {
+		fatalIf(fmt.Errorf("-to must be on or after -from"), "")
 	}
 	window := interval.Span{Start: from, End: to}
 
@@ -208,6 +215,10 @@ func cmdAgenda(args []string) {
 	var cals []personSpec
 	fs.Var(personFlag{&cals}, "cal", "calendar: name=file-or-url (repeatable)")
 	fs.Parse(args)
+	rejectArgs(fs)
+	if *daysFlag <= 0 {
+		fatalIf(fmt.Errorf("-days must be greater than zero"), "")
+	}
 
 	loc, err := time.LoadLocation(*tzFlag)
 	fatalIf(err, "bad -tz")
@@ -260,6 +271,7 @@ func cmdServe(args []string) {
 	demoFlag := fs.Bool("demo", false, "run with synthetic calendars (no config needed)")
 	listenFlag := fs.String("listen", "", "listen address for -demo (default :8080)")
 	fs.Parse(args)
+	rejectArgs(fs)
 
 	cfgExplicit := false
 	fs.Visit(func(f *flag.Flag) {
@@ -342,6 +354,7 @@ func cmdLicense(args []string) {
 		}
 		key := args[1]
 		fs.Parse(args[2:])
+		rejectArgs(fs)
 		label := *labelFlag
 		if label == "" {
 			label, _ = os.Hostname()
@@ -354,6 +367,9 @@ func cmdLicense(args []string) {
 		}
 		fmt.Printf(")\nstate: %s\n", mgr.Path)
 	case "status":
+		if len(args) > 1 {
+			fatalIf(fmt.Errorf("usage: anvil license status"), "")
+		}
 		ok, st, err := mgr.Check()
 		fatalIf(err, "status")
 		if st == nil {
@@ -378,6 +394,7 @@ func cmdGcalLogin(args []string) {
 	idFlag := fs.String("client-id", "", "OAuth client ID (Desktop app)")
 	secretFlag := fs.String("client-secret", "", "OAuth client secret")
 	fs.Parse(args)
+	rejectArgs(fs)
 	if *idFlag == "" || *secretFlag == "" {
 		fatalIf(fmt.Errorf("need -client-id and -client-secret (create a Desktop-app OAuth client in Google Cloud Console)"), "")
 	}
@@ -397,6 +414,7 @@ func cmdCaldavCalendars(args []string) {
 	userFlag := fs.String("user", "", "username")
 	passFlag := fs.String("pass", "", "password or app password (or set ANVIL_CALDAV_PASS)")
 	fs.Parse(args)
+	rejectArgs(fs)
 	if *passFlag == "" {
 		*passFlag = os.Getenv("ANVIL_CALDAV_PASS")
 	}
@@ -409,6 +427,29 @@ func cmdCaldavCalendars(args []string) {
 	for _, cal := range cals {
 		fmt.Printf("%-24s %s\n", cal.Name, cal.URL)
 	}
+}
+
+func validateFindFlags(duration, step, travel time.Duration, limit int) error {
+	if duration <= 0 {
+		return fmt.Errorf("-d must be greater than zero")
+	}
+	if step <= 0 {
+		return fmt.Errorf("-step must be greater than zero")
+	}
+	if travel < 0 {
+		return fmt.Errorf("-travel cannot be negative")
+	}
+	if limit <= 0 {
+		return fmt.Errorf("-n must be greater than zero")
+	}
+	return nil
+}
+
+func rejectArgs(fs *flag.FlagSet) {
+	if fs.NArg() == 0 {
+		return
+	}
+	fatalIf(fmt.Errorf("unexpected argument %q (run 'anvil %s -h' for flags)", fs.Arg(0), fs.Name()), "")
 }
 
 func readCalendar(src string, floating *time.Location) (*ics.Calendar, error) {
