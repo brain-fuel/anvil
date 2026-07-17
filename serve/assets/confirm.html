@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Booked — {{.Link.Title}}</title>
+<script>(function(){try{var t=localStorage.getItem("anvil-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();</script>
+<title>Booked â {{.Link.Title}}</title>
 <style>
-:root{color-scheme:light dark;--accent:#0e7490;--bg:#f8fafc;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0}
-@media(prefers-color-scheme:dark){:root{--bg:#0b1220;--card:#101a2e;--ink:#e2e8f0;--muted:#94a3b8;--line:#1e293b}}
+:root{color-scheme:dark;--accent:#3fc8dd;--bg:#02102e;--card:#06214f;--ink:#e9eef7;--muted:#9fb2d6;--line:#173a72;--danger:#f0716f}
+:root[data-theme="light"]{color-scheme:light;--accent:#0e7490;--bg:#f5f8fd;--card:#ffffff;--ink:#0a1f4d;--muted:#51617f;--line:#d3ddf0;--danger:#b91c1c}
+.theme-btn{position:fixed;bottom:14px;right:14px;z-index:50;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit;font-size:1rem;line-height:1;cursor:pointer}.theme-btn .moon{display:none}:root[data-theme="light"] .theme-btn .sun{display:none}:root[data-theme="light"] .theme-btn .moon{display:inline}
 body{margin:0;font:16px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
 main{max-width:560px;margin:0 auto;padding:48px 16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px;text-align:center}
@@ -17,9 +19,11 @@ a.btn{display:inline-block;margin-top:1rem;padding:11px 20px;border-radius:10px;
 </style>
 </head>
 <body>
+<button id="theme-btn" class="theme-btn" type="button" aria-label="Toggle light and dark theme" title="Toggle light / dark"><span class="sun">☀</span><span class="moon">☾</span></button>
+<script>(function(){var b=document.getElementById("theme-btn");if(!b)return;b.addEventListener("click",function(){var r=document.documentElement,c=r.getAttribute("data-theme")==="light"?"dark":"light";r.setAttribute("data-theme",c);try{localStorage.setItem("anvil-theme",c)}catch(e){}})})();</script>
 <main>
 <div class="card">
-  <div style="font-size:2.2rem">✓</div>
+  <div style="font-size:2.2rem">â</div>
   <h1>{{.Link.Title}} is booked</h1>
   <p class="when">{{.Start}} <span class="muted">({{.Timezone}})</span></p>
   {{if .JoinURL}}<p><a class="btn" href="{{.JoinURL}}">Join link</a></p>

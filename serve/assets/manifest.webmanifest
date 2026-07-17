@@ -4,7 +4,7 @@
   "description": "Your agenda across every calendar, with join links and directions.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b1220",
+  "background_color": "#02102e",
   "theme_color": "#0e7490",
   "icons": [
     {

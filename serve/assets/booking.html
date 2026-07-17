@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Link.Title}} — anvil</title>
+<script>(function(){try{var t=localStorage.getItem("anvil-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();</script>
+<title>{{.Link.Title}} â anvil</title>
 <style>
-:root{color-scheme:light dark;--accent:#0e7490;--bg:#f8fafc;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0}
-@media(prefers-color-scheme:dark){:root{--bg:#0b1220;--card:#101a2e;--ink:#e2e8f0;--muted:#94a3b8;--line:#1e293b}}
+:root{color-scheme:dark;--accent:#3fc8dd;--bg:#02102e;--card:#06214f;--ink:#e9eef7;--muted:#9fb2d6;--line:#173a72;--danger:#f0716f}
+:root[data-theme="light"]{color-scheme:light;--accent:#0e7490;--bg:#f5f8fd;--card:#ffffff;--ink:#0a1f4d;--muted:#51617f;--line:#d3ddf0;--danger:#b91c1c}
+.theme-btn{position:fixed;bottom:14px;right:14px;z-index:50;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit;font-size:1rem;line-height:1;cursor:pointer}.theme-btn .moon{display:none}:root[data-theme="light"] .theme-btn .sun{display:none}:root[data-theme="light"] .theme-btn .moon{display:inline}
 *{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
 main{max-width:720px;margin:0 auto;padding:24px 16px 64px}
 h1{font-size:1.5rem;margin:.5rem 0 .25rem}
@@ -28,12 +30,14 @@ button[type=submit]{margin-top:1rem;width:100%;padding:12px;border:0;border-radi
 </style>
 </head>
 <body>
+<button id="theme-btn" class="theme-btn" type="button" aria-label="Toggle light and dark theme" title="Toggle light / dark"><span class="sun">☀</span><span class="moon">☾</span></button>
+<script>(function(){var b=document.getElementById("theme-btn");if(!b)return;b.addEventListener("click",function(){var r=document.documentElement,c=r.getAttribute("data-theme")==="light"?"dark":"light";r.setAttribute("data-theme",c);try{localStorage.setItem("anvil-theme",c)}catch(e){}})})();</script>
 <main>
 <h1>{{.Link.Title}}</h1>
-<p class="meta">{{.Duration}}{{if .Link.InPerson}} · in person{{if .Link.Address}} at {{.Link.Address}}{{end}}{{else}} · video call{{end}} · times in {{.Timezone}}</p>
+<p class="meta">{{.Duration}}{{if .Link.InPerson}} Â· in person{{if .Link.Address}} at {{.Link.Address}}{{end}}{{else}} Â· video call{{end}} Â· times in {{.Timezone}}</p>
 
 {{if not .Groups}}
-<p class="empty">No open times in the next while — check back, or reach out directly.</p>
+<p class="empty">No open times in the next while â check back, or reach out directly.</p>
 {{end}}
 
 {{range .Groups}}
@@ -53,7 +57,7 @@ button[type=submit]{margin-top:1rem;width:100%;padding:12px;border:0;border-radi
   <button type="submit">Confirm booking</button>
 </form>
 
-{{if not .Licensed}}<p class="pow"><a href="https://goforge.dev/anvil/" rel="noopener">⚒ Powered by anvil</a></p>{{end}}
+{{if not .Licensed}}<p class="pow"><a href="https://goforge.dev/anvil/" rel="noopener">â Powered by anvil</a></p>{{end}}
 
 <script>
 const form=document.getElementById('book');

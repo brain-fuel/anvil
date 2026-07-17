@@ -3,12 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>(function(){try{var t=localStorage.getItem("anvil-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();</script>
 <meta name="theme-color" content="#0e7490">
 <link rel="manifest" href="/manifest.webmanifest">
-<title>anvil — agenda</title>
+<title>anvil â agenda</title>
 <style>
-:root{color-scheme:light dark;--accent:#0e7490;--bg:#f8fafc;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0}
-@media(prefers-color-scheme:dark){:root{--bg:#0b1220;--card:#101a2e;--ink:#e2e8f0;--muted:#94a3b8;--line:#1e293b}}
+:root{color-scheme:dark;--accent:#3fc8dd;--bg:#02102e;--card:#06214f;--ink:#e9eef7;--muted:#9fb2d6;--line:#173a72;--danger:#f0716f}
+:root[data-theme="light"]{color-scheme:light;--accent:#0e7490;--bg:#f5f8fd;--card:#ffffff;--ink:#0a1f4d;--muted:#51617f;--line:#d3ddf0;--danger:#b91c1c}
+.theme-btn{position:fixed;bottom:14px;right:14px;z-index:50;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font:inherit;font-size:1rem;line-height:1;cursor:pointer}.theme-btn .moon{display:none}:root[data-theme="light"] .theme-btn .sun{display:none}:root[data-theme="light"] .theme-btn .moon{display:inline}
 *{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
 main{max-width:720px;margin:0 auto;padding:20px 14px 64px}
 header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
@@ -25,14 +27,16 @@ select{font:inherit;background:var(--card);color:var(--ink);border:1px solid var
 .act a{display:inline-block;margin:4px 6px 0 0;padding:7px 12px;border-radius:8px;font-size:.85rem;font-weight:600;text-decoration:none;background:var(--accent);color:#fff}
 .act a.dir{background:transparent;border:1px solid var(--accent);color:var(--accent)}
 .empty,.err{color:var(--muted);padding:1.5rem 0}
-.err{color:#b91c1c}
+.err{color:var(--danger)}
 .now{border-color:var(--accent)}
 </style>
 </head>
 <body>
+<button id="theme-btn" class="theme-btn" type="button" aria-label="Toggle light and dark theme" title="Toggle light / dark"><span class="sun">☀</span><span class="moon">☾</span></button>
+<script>(function(){var b=document.getElementById("theme-btn");if(!b)return;b.addEventListener("click",function(){var r=document.documentElement,c=r.getAttribute("data-theme")==="light"?"dark":"light";r.setAttribute("data-theme",c);try{localStorage.setItem("anvil-theme",c)}catch(e){}})})();</script>
 <main>
 <header>
-  <h1>⚒ anvil</h1>
+  <h1>â anvil</h1>
   <select id="days">
     <option value="1">today</option>
     <option value="3">3 days</option>
@@ -40,7 +44,7 @@ select{font:inherit;background:var(--card);color:var(--ink);border:1px solid var
     <option value="14">2 weeks</option>
   </select>
 </header>
-<div id="list"><p class="empty">Loading…</p></div>
+<div id="list"><p class="empty">Loadingâ¦</p></div>
 </main>
 <script>
 const list=document.getElementById('list'),daysSel=document.getElementById('days');
