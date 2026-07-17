@@ -8,7 +8,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./anvil.json:/etc/anvil/anvil.json:ro
-      - anvil-data:/data
     healthcheck:
       test: ["CMD", "/anvil", "version"]
       interval: 30s
@@ -27,5 +26,4 @@ services:
       - caddy-data:/data
 
 volumes:
-  anvil-data:
   caddy-data:

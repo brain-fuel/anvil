@@ -166,17 +166,12 @@ slots, _ := schedule.Find(schedule.Request{
 })
 ```
 
-## Pricing
+## Self-hosting
 
-Everything you've read is free for one scheduling link — not a trial.
-**Anvil Pro** is **$90/year per deployment**: unlimited links, no
-booking-page footer, priority support. Calendly charges $20/user/month for
-less. Details in [docs/LICENSING.md](docs/LICENSING.md); self-hosting guide
-in [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
-
-```sh
-anvil license activate ANVIL_XXXX
-```
+anvil is free and MIT-licensed — every command, unlimited scheduling links,
+no tiers and nothing to activate. Point it at your calendars and run it. The
+[self-hosting guide](docs/SELF-HOSTING.md) covers the config file, systemd,
+and Docker.
 
 ## Roadmap
 

@@ -1,7 +1,7 @@
 # Self-hosting anvil
 
-Anvil's entire server state is one JSON config file plus a small license
-state file. A $5 VPS runs it comfortably.
+Anvil's entire server state is one JSON config file. A $5 VPS runs it
+comfortably.
 
 ## Try before configuring
 
@@ -56,8 +56,7 @@ invite gets *written* there). iCal URLs are read-only sources.
 
 ## Operations
 
-- **Backup**: `/etc/anvil/anvil.json` and (if licensed) the license state in
-  `/var/lib/anvil/anvil/license.json`. Two files.
+- **Backup**: `/etc/anvil/anvil.json`. One file.
 - **Health**: `GET /healthz` — no auth, fit for uptime monitors.
 - **Logs**: one line per request on stderr → `journalctl -u anvil`.
 - **Shutdown**: SIGTERM drains in-flight bookings (10s).
@@ -68,13 +67,5 @@ invite gets *written* there). iCal URLs are read-only sources.
 
 ## License
 
-Free tier serves one scheduling link. Anvil Pro ($90/year) unlocks
-unlimited links and removes the booking-page footer:
-
-```sh
-anvil license activate ANVIL_XXXX   # once, on the host that runs serve
-anvil license status
-```
-
-See [LICENSING.md](LICENSING.md) for how validation and the offline grace
-window work.
+anvil is MIT-licensed and free: every command and an unlimited number of
+scheduling links, with nothing to activate.

@@ -14,14 +14,12 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	"goforge.dev/anvil/agenda"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
-	"goforge.dev/anvil/licensing"
 	"goforge.dev/anvil/schedule"
 )
 
@@ -38,29 +36,8 @@ type Server struct {
 	writers map[string]Writer
 	people  map[string]PersonConfig
 
-	now      func() time.Time
-	bookMu   sync.Mutex  // one booking at a time prevents double-booking races
-	licensed atomic.Bool // Anvil Pro entitlement; flipped by background revalidation
-}
-
-// SetLicensed flips the Pro entitlement (set at boot and by the background
-// license revalidation loop).
-func (s *Server) SetLicensed(v bool) { s.licensed.Store(v) }
-
-// Licensed reports the current entitlement.
-func (s *Server) Licensed() bool { return s.licensed.Load() }
-
-// FreeLinkLimit is how many scheduling links the free tier serves.
-const FreeLinkLimit = 1
-
-// CheckEntitlement enforces the free-tier limit at boot: failing fast beats
-// surprising a paying guest with a dead link later.
-func (s *Server) CheckEntitlement() error {
-	if len(s.cfg.Links) > FreeLinkLimit && !s.Licensed() {
-		return fmt.Errorf("config has %d scheduling links; the free tier serves %d.\nAnvil Pro is $90/year for unlimited links: %s\nAlready bought? Run: anvil license activate <key>",
-			len(s.cfg.Links), FreeLinkLimit, licensing.BuyURL)
-	}
-	return nil
+	now    func() time.Time
+	bookMu sync.Mutex // one booking at a time prevents double-booking races
 }
 
 // New wires a validated config into a Server.
@@ -149,8 +126,8 @@ func (s *Server) ListenAndServe() error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.ListenAndServe() }()
-	log.Printf("anvil serve: listening on %s (%d calendars, %d links, licensed=%v)",
-		s.cfg.Listen, len(s.sources), len(s.cfg.Links), s.Licensed())
+	log.Printf("anvil serve: listening on %s (%d calendars, %d links)",
+		s.cfg.Listen, len(s.sources), len(s.cfg.Links))
 
 	select {
 	case err := <-errCh:
@@ -388,7 +365,6 @@ func (s *Server) handleLink(w http.ResponseWriter, r *http.Request) {
 		"Groups":   groups,
 		"Timezone": s.cfg.Timezone,
 		"Duration": time.Duration(l.DurationM) * time.Minute,
-		"Licensed": s.Licensed(),
 	})
 }
 

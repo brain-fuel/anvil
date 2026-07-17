@@ -270,46 +270,19 @@ func TestInPersonTravelPadding(t *testing.T) {
 
 var _ = fmt.Sprintf // keep fmt for debugging edits
 
-func TestEntitlementGate(t *testing.T) {
-	srv, _ := newTestServer(t)
-	srv.cfg.Links = append(srv.cfg.Links, LinkConfig{
-		Slug: "second", Title: "Second", DurationM: 30,
-		Required: []string{"mike"}, BookInto: "target",
-	})
-	if err := srv.CheckEntitlement(); err == nil || !strings.Contains(err.Error(), "free tier") {
-		t.Fatalf("err %v, want free-tier rejection", err)
-	}
-	srv.SetLicensed(true)
-	if err := srv.CheckEntitlement(); err != nil {
-		t.Fatalf("licensed but rejected: %v", err)
-	}
-	srv.cfg.Links = srv.cfg.Links[:1]
-	srv.SetLicensed(false)
-	if err := srv.CheckEntitlement(); err != nil {
-		t.Fatalf("single link should be free: %v", err)
-	}
-}
-
 func TestPoweredByFooter(t *testing.T) {
 	srv, _ := newTestServer(t)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	get := func() string {
-		resp, err := http.Get(ts.URL + "/l/intro")
-		if err != nil {
-			t.Fatal(err)
-		}
-		b, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return string(b)
+	resp, err := http.Get(ts.URL + "/l/intro")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(get(), "Powered by anvil") {
-		t.Error("free tier should show the footer")
-	}
-	srv.SetLicensed(true)
-	if strings.Contains(get(), "Powered by anvil") {
-		t.Error("licensed deployment should not show the footer")
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(b), "Powered by anvil") {
+		t.Error("booking page should show the Powered by anvil footer")
 	}
 }
 
