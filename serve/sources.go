@@ -1,8 +1,8 @@
 package serve
 
 import (
+	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -11,6 +11,7 @@ import (
 	"goforge.dev/anvil/gcal"
 	"goforge.dev/anvil/ics"
 	"goforge.dev/anvil/interval"
+	forgehttp "goforge.dev/resty"
 )
 
 // Source reads one calendar. Events powers the agenda; Busy powers
@@ -60,15 +61,23 @@ type icsURLSource struct {
 }
 
 func (s *icsURLSource) Events(interval.Span) (*ics.Calendar, error) {
-	resp, err := http.Get(s.url)
-	if err != nil {
-		return nil, err
+	outcome := forgehttp.Send(forgehttp.LinOf(forgehttp.Get(nil, s.url)), context.Background())
+	switch result := outcome.(type) {
+	case forgehttp.Succeeded:
+		body := forgehttp.TakeBody(forgehttp.LinOf(result.Response))
+		defer body.Close()
+		return ics.ParseIn(body, s.loc)
+	case forgehttp.HTTPFailed:
+		status := forgehttp.Status(result.Response)
+		_, _ = forgehttp.Discard(forgehttp.LinOf(result.Response))
+		return nil, fmt.Errorf("GET %s: HTTP %d", s.url, status)
+	case forgehttp.TransportFailed:
+		return nil, result.Err
+	case forgehttp.Canceled:
+		return nil, result.Err
+	default:
+		return nil, fmt.Errorf("GET %s: unknown HTTP outcome", s.url)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET %s: %s", s.url, resp.Status)
-	}
-	return ics.ParseIn(resp.Body, s.loc)
 }
 
 func (s *icsURLSource) Busy(window interval.Span) (interval.Set, error) {
