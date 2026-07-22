@@ -2,7 +2,7 @@ github.com/go-resty/resty/v2 v2.17.2 h1:FQW5oHYcIlkCNrMD2lloGScxcHJ0gkjshV3qcQAy
 github.com/go-resty/resty/v2 v2.17.2/go.mod h1:kCKZ3wWmwJaNc7S29BRtUhJwy7iqmn+2mLtQrOyQlVA=
 goforge.dev/goplus/std v0.26.0 h1:E/tOlTYp4eQVQ1nGKJcelCsVe4OJ9h+MCNjJ7Kxyh20=
 goforge.dev/goplus/std v0.26.0/go.mod h1:kr7uOTXhg4p16dGLzGTBnVBsteQnUo3e/5XU055m1PM=
-goforge.dev/resty v0.1.0 h1:W/f4cVerK7P/nu2PlThQ0Pp1elSwO9I2oNYGygIHfis=
-goforge.dev/resty v0.1.0/go.mod h1:f51BTnuJR+lrY2cdtVx0wdLPinIXOjOR7cGJUBhwRqs=
+goforge.dev/resty v0.1.1 h1:GKHM73If8dTdUYFEjiE2+nm0AxefwbKvuR4pVZl5eb0=
+goforge.dev/resty v0.1.1/go.mod h1:f51BTnuJR+lrY2cdtVx0wdLPinIXOjOR7cGJUBhwRqs=
 golang.org/x/net v0.50.0 h1:ucWh9eiCGyDR3vtzso0WMQinm2Dnt8cFMuQa9K33J60=
 golang.org/x/net v0.50.0/go.mod h1:UgoSli3F/pBgdJBHCTc+tp3gmrU4XswgGRgtnwWTfyM=
